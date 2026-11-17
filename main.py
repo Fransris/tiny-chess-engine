@@ -1,113 +1,142 @@
-import sys,os,math,time,json,urllib.request
-U="https://make.fun/api/competitions/tiny-chess-01/env"
-def q(p): return urllib.request.urlopen(p,timeout=5).read().decode()
-def P(d): urllib.request.urlopen(U+"/move",data=json.dumps(d).encode(),headers={"Content-Type":"application/json"}).read()
-B=0;W=1;K=0;Q=1;R=2;B=3;N=4;P=5
-D=[(1,0),(-1,0),(0,1),(0,-1),(1,1),(-1,-1),(1,-1),(-1,1)]
-H=[(2,1),(2,-1),(-2,1),(-2,-1),(1,2),(1,-2),(-1,2),(-1,-2)]
-def I(b):
- b=[0]*120
- for i in range(64):
-  r=i//8;f=i%8;b[r*10+f+21]=1
- return b
-M=I([])
-def S(f,t,p,c): return (f<<12)|(t<<6)|(p<<3)|c
-def U(m): return m>>12&63,m>>6&63,m>>3&7,m&7
-def A(b,s):
- if s==W: return b
- r=[0]*120
+import sys,json,urllib.request as u
+U="http://localhost:8081"
+def Q(p):return json.loads(u.urlopen(u.Request(p,data=b"{}",headers={"Content-Type":"application/json"},method="POST"),timeout=5).read().decode())
+def M(d):return json.loads(u.urlopen(u.Request(U+"/move",data=json.dumps(d).encode(),headers={"Content-Type":"application/json"},method="POST"),timeout=5).read().decode())
+V=[20000,900,500,330,320,100,0];D=[(1,0),(-1,0),(0,1),(0,-1),(1,1),(-1,-1),(1,-1),(-1,1)];H=[(2,1),(2,-1),(-2,1),(-2,-1),(1,2),(1,-2),(-1,2),(-1,-2)];P={"r":0,"n":3,"b":4,"q":1,"k":5,"p":2,"R":6,"N":9,"B":10,"Q":7,"K":11,"P":8}
+def E(b,c):
+ s=0;k=-1
  for i,v in enumerate(b):
-  if v: r[119-i]=v^1 if v<6 else v
- return r
-def G(b,c):
- m=[];o=6 if c else 0;p=o+P;k=o+K
- for i,v in enumerate(b):
-  if v==p:
-   t=i-10 if c else i+10
-   if M[t] and b[t]==0:
-    if t//10 in (1,8): m+=[S(i,t,Q,0),S(i,t,R,0),S(i,t,B,0),S(i,t,N,0)]
-    else: m+=[S(i,t,0,0)]
-   if i%10<9 and b[t-1]>>1!=c: m+=[S(i,t-1,Q,0) if t//10 in(1,8) else S(i,t-1,0,0)]
-   if i%10>2 and b[t+1]>>1!=c: m+=[S(i,t+1,Q,0) if t//10 in(1,8) else S(i,t+1,0,0)]
-  if v==o+N:
-   for dx,dy in H:
-    t=i+dx*10+dy
-    if M[t] and b[t]>>1!=c: m+=[S(i,t,0,0)]
-  if v==o+B or v==o+Q:
-   for dx,dy in D[4:]:
-    t=i
-    while 1:
-     t+=dx*10+dy
-     if not M[t]: break
-     if b[t]: 
-      if b[t]>>1!=c: m+=[S(i,t,0,0)]
+  if v>=0:
+   p=v%6;x=V[p]
+   if p in(3,4):x+=max(0,4-abs((i&7)-3.5)-abs((i>>4)-3.5))*10
+   if p==5 and(v<6)==c:k=i
+   s+=x*(1 if v<6 else-1)
+ s=s if c else-s
+ if k>=0:
+  kf,kr=k&7,k>>4
+  for df in(-1,0,1):
+   f=kf+df
+   if 0<=f<8:
+    for r in range(kr+1,8)if c else range(kr-1,-1,-1):
+     v=b[16*r+f]
+     if v>=0:
+      if v%6==2 and(v<6)==c:s+=20
       break
-     m+=[S(i,t,0,0)]
-  if v==o+R or v==o+Q:
-   for dx,dy in D[:4]:
-    t=i
-    while 1:
-     t+=dx*10+dy
-     if not M[t]: break
-     if b[t]:
-      if b[t]>>1!=c: m+=[S(i,t,0,0)]
-      break
-     m+=[S(i,t,0,0)]
-  if v==o+K:
-   for dx,dy in D:
-    t=i+dx*10+dy
-    if M[t] and b[t]>>1!=c: m+=[S(i,t,0,0)]
- return m
-V=[0,100,500,320,330,900,20000]
-def E(b):
- s=0
- for v in b:
-  if v: s+=V[v&7]*(1 if v<6 else -1)
  return s
-def N(b,m,c):
- b=b[:];f,t,p,_=U(m);pc=b[f];b[f]=0
- if p: b[t]=6+c if c else 6+W
- else: b[t]=pc
+def L(f):
+ b=[-1]*128;i=0
+ for c in f.split()[0]:
+  if c=="/":continue
+  if c.isdigit():i+=int(c)
+  else:s=16*(i//8)+(i%8);b[s]=P[c];i+=1
  return b
-def D(b,c,d,a,b_,k):
- if d==0: return E(b) if c else -E(b)
+def G(b,c):
+ m=[];a=[]
+ for s in range(128):
+  v=b[s]
+  if v<0 or(v<6)!=c:continue
+  p=v%6
+  if p==2:
+   d=-16 if c else 16;t=s+d
+   if 0<=t<128 and b[t]==-1:m+=[(s,t,0)]
+   for dc in(-1,1):
+    t=s+d+dc
+    if 0<=t<128 and b[t]>=0 and(b[t]<6)!=c and b[t]%6!=5:a+=[(s,t,0)]
+  elif p==3:
+   for dx,dy in H:
+    t=s+dx+dy*16
+    if 0<=t<128 and(s&7)-dx in range(8)and b[t]>=0 and(b[t]<6)!=c and b[t]%6!=5:a+=[(s,t,0)]
+  elif p in(4,1):
+   for dx,dy in D[4:]:
+    t=s
+    while 1:
+     t+=dx+dy*16
+     if not(0<=t<128 and(t&7)-dx in range(8)):break
+     if b[t]>=0:
+      if(b[t]<6)!=c and b[t]%6!=5:a+=[(s,t,0)]
+      break
+     m+=[(s,t,0)]
+  if p in(0,1):
+   for dx,dy in D[:4]:
+    t=s
+    while 1:
+     t+=dx+dy*16
+     if not(0<=t<128 and(t&7)-dx in range(8)):break
+     if b[t]>=0:
+      if(b[t]<6)!=c and b[t]%6!=5:a+=[(s,t,0)]
+      break
+     m+=[(s,t,0)]
+  if p==5:
+   for dx,dy in D:
+    t=s+dx+dy*16
+    if 0<=t<128 and(t&7)-dx in range(8)and b[t]>=0 and(b[t]<6)!=c and b[t]%6!=5:a+=[(s,t,0)]
+ return a+m
+def K(b,c):
+ k=5 if c else 11
+ for i,v in enumerate(b):
+  if v==k:return i
+ return-1
+def C(b,c):
+ k=K(b,not c)
+ if k<0:return 0
+ o=not c
+ for s in range(128):
+  v=b[s]
+  if v<0 or(v<6)!=o:continue
+  p=v%6
+  if p==2:
+   d=-16 if o else 16
+   for dc in(-1,1):
+    if k==s+d+dc:return 1
+  elif p==3:
+   for dx,dy in H:
+    if k==s+dx+dy*16 and(s&7)-dx in range(8):return 1
+  elif p in(4,1):
+   for dx,dy in D[4:]:
+    t=s
+    while 1:
+     t+=dx+dy*16
+     if not(0<=t<128 and(t&7)-dx in range(8)):break
+     if t==k:return 1
+     if b[t]>=0:break
+  if p in(0,1):
+   for dx,dy in D[:4]:
+    t=s
+    while 1:
+     t+=dx+dy*16
+     if not(0<=t<128 and(t&7)-dx in range(8)):break
+     if t==k:return 1
+     if b[t]>=0:break
+  if p==5:
+   for dx,dy in D:
+    t=s+dx+dy*16
+    if 0<=t<128 and(t&7)-dx in range(8)and t==k:return 1
+ return 0
+def N(b,m,c):b=b[:];f,t,pr=m;pc=b[f];b[f]=-1;b[t]=6+c if pr else pc;return b
+def S(b,c,d,a,b_):
+ if d==0:return E(b,c)
  m=G(b,c)
- if not m: return -20000 if k else 20000
+ if not m:return-2e4 if C(b,c)else 0
  for mv in m:
-  nb=N(b,mv,c)
-  v=-D(nb,not c,d-1,-b_,-a,True)
-  if v>a: a=v
-  if a>=b_: return a
+  v=-S(N(b,mv,c),not c,d-1,-b_,-a)
+  if v>a:a=v
+  if a>=b_:return a
  return a
-def B(b,c):
- m=G(b,c)
- if not m: return None
- bv=-30000;bm=None
- for mv in m:
-  nb=N(b,mv,c)
-  v=-D(nb,not c,3,-30000,30000,True)
-  if v>bv: bv=v;bm=mv
- return bm
-def U(f,t): return chr(97+f%10-2)+str(8-f//10+2)+chr(97+t%10-2)+str(8-t//10+2)
-def L(s):
- b=[0]*120
- for i in range(64): b[i//8*10+i%8+21]=0
- p={"r":4,"n":2,"b":3,"q":1,"k":0,"p":5,"R":10,"N":8,"B":9,"Q":7,"K":6,"P":11}
- for i,ch in enumerate(s.split()[0]):
-  if ch=="/": continue
-  if ch.isdigit(): i+=int(ch)-1
-  else: b[i//8*10+i%8+21]=p[ch]+(0 if ch.islower() else 6); i+=1
- return b
+def B(b,c,lm):
+ bv=-3e4;bu=None
+ for u in lm:
+  f=16*(8-int(u[1]))+(ord(u[0])-97);t=16*(8-int(u[3]))+(ord(u[2])-97)
+  nb=N(b,(f,t,0),c);v=-S(nb,not c,2,-3e4,3e4)+100*C(nb,not c)
+  if v>bv:bv=v;bu=u
+ return bu
 def main():
- g=q(U+"/game").strip()
- b=L(g) if g else [0]*120
- c=W
- while 1:
-  m=B(b,c)
-  if not m: break
-  f,t,_,_=U(m)
-  P({"game":g,"move":U(f,t)})
-  b=N(b,m,c)
-  c=not c
-  time.sleep(0.1)
-if __name__=="__main__": main()
+ g=Q(U+"/game")
+ while g.get("game",0)<=6:
+  gn=g["game"];c=g["colour"]=="white"
+  while g.get("status")!="over":
+   b=L(g["fen"]);lm=g.get("legal_moves",[]);uci=B(b,c,lm)
+   if not uci:break
+   sys.stderr.write(f"game {gn} move {uci}\n");g=M({"game":gn,"move":uci})
+  g=Q(U+"/game")
+  if g.get("status")=="done":break
+if __name__=="__main__":main()
